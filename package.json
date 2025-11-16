@@ -1,0 +1,16 @@
+{
+  "name": "kakao-skill-server",
+  "version": "1.0.0",
+  "description": "카카오 챗봇 스킬 서버 - 최소 Express 서버",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["kakao", "chatbot", "skill-server"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+
