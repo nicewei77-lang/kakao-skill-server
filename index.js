@@ -3,6 +3,7 @@ const app = express();
 
 app.use(express.json());
 
+// Kakao 스킬 엔드포인트
 app.post('/kakao', (req, res) => {
   const body = req.body || {};
   const action = body.action || {};
@@ -28,4 +29,14 @@ app.post('/kakao', (req, res) => {
       ]
     }
   });
+});
+
+// 헬스체크용 루트 엔드포인트
+app.get('/', (req, res) => {
+  res.send('Linkus skill server OK');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
