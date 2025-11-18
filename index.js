@@ -103,7 +103,7 @@ async function findPersonByNameAndPhone4(name, phone4) {
 }
 
 // =========================
-// Kakao 스킬 엔드포인트
+// Kakao 스킬 엔드포인트(본인인증)
 // =========================
 
 app.post('/kakao', async (req, res) => {
@@ -198,6 +198,23 @@ app.post('/kakao', async (req, res) => {
       },
     });
   }
+});
+// =========================
+// Kakao 스킬 엔드포인트(출석조회)
+// =========================
+app.post('/attendance', (req, res) => {
+  return res.json({
+    version: "2.0",
+    template: {
+      outputs: [
+        {
+          simpleText: {
+            text: "출석조회 스킬 연결 테스트 OK"
+          }
+        }
+      ]
+    }
+  });
 });
 
 // 헬스체크용 루트 엔드포인트
