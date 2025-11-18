@@ -1,35 +1,43 @@
+// index.js
 const express = require('express');
 const { google } = require('googleapis');
 
 const app = express();
 app.use(express.json());
 
-// =========================
-// Google Sheets 설정
-// =========================
+// ======================================
+// 1. Google Sheets 공통 설정
+// ======================================
 
-// 실제 시트 ID
-const SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
+// ─ 본인인증용 명단 시트 ─
+const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
+const AUTH_SHEET_NAME = '18기(전 인원) 명단';
+const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
-// 시트 이름 + 데이터 범위
-// (1~3행: 헤더, 4행부터 데이터 / A~S열까지 사용)
-const SHEET_NAME = '18기(전 인원) 명단';
-const MEMBER_RANGE = `${SHEET_NAME}!A4:S`;
-
-// 열 인덱스 (0부터 시작, A=0, B=1, ...)
-// ─ 스태프 영역 ─
+// 열 인덱스 (0부터, A=0, B=1, C=2, ...)
+// 스태프 영역
 const COL_STAFF_NAME  = 2;  // C열: 스태프 이름
-const COL_STAFF_TEAM  = 4;  // E열: 스태프 직무팀
-const COL_STAFF_UNIV  = 6;  // G열: 스태프 대학교
 const COL_STAFF_PHONE = 8;  // I열: 스태프 연락처
 
-// ─ 멤버 영역 ─
+// 멤버 영역
 const COL_MEMBER_NAME  = 11; // L열: 멤버 이름
-const COL_MEMBER_TEAM  = 13; // N열: 멤버 직무팀
-const COL_MEMBER_UNIV  = 15; // P열: 멤버 대학교
 const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 
-// 환경변수에 넣어둔 서비스 계정 JSON 사용
+// ─ 출석부 시트 ─
+const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
+const ATT_SHEET_NAME = '출석부';
+// 1~4행은 헤더라고 보고, 5행부터 데이터를 읽음 (A~Q까지 넉넉히)
+const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`;
+
+// 출석부 열 인덱스
+const COL_ATT_NAME   = 2;  // C열: 이름
+const COL_OUT_N      = 13; // N열: 아웃카운트(출석)
+const COL_OUT_P      = 15; // P열: 8월 출석 포함 아웃카운트
+
+// ======================================
+// 2. Google Sheets 클라이언트 공통 함수
+// ======================================
+
 function createSheetsClient() {
   const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!rawKey) {
@@ -46,13 +54,16 @@ function createSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
-// 이름 + 전화번호 뒤 4자리로 스태프/멤버 찾기
+// ======================================
+// 3. 본인인증: 이름 + 전화 뒤 4자리로 사람 찾기
+// ======================================
+
 async function findPersonByNameAndPhone4(name, phone4) {
   const sheets = createSheetsClient();
 
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: MEMBER_RANGE,
+    spreadsheetId: AUTH_SPREADSHEET_ID,
+    range: AUTH_RANGE,
   });
 
   const rows = res.data.values || [];
@@ -62,61 +73,118 @@ async function findPersonByNameAndPhone4(name, phone4) {
   const targetPhone4 = (phone4 || '').trim();
 
   for (const row of rows) {
-    // 공통: 스태프/멤버 전화번호에서 숫자만 추출해서 마지막 4자리 비교
+    // 스태프 전화번호
     const staffPhone = (row[COL_STAFF_PHONE] || '').toString();
     const staffDigits = staffPhone.replace(/[^0-9]/g, '');
     const staffLast4 = staffDigits.slice(-4);
 
+    // 멤버 전화번호
     const memberPhone = (row[COL_MEMBER_PHONE] || '').toString();
     const memberDigits = memberPhone.replace(/[^0-9]/g, '');
     const memberLast4 = memberDigits.slice(-4);
 
-    // 1) 멤버 쪽 먼저 체크
+    // 1) 멤버 먼저
     const memberName = (row[COL_MEMBER_NAME] || '').trim();
-    if (memberName && memberDigits && memberLast4 === targetPhone4 && memberName === targetName) {
+    if (
+      memberName &&
+      memberDigits &&
+      memberLast4 === targetPhone4 &&
+      memberName === targetName
+    ) {
       return {
         role: '멤버',
         name: memberName,
         phone4: memberLast4,
-        team: row[COL_MEMBER_TEAM] || '',
-        univ: row[COL_MEMBER_UNIV] || '',
-        raw: row,
       };
     }
 
-    // 2) 스태프 쪽 체크
+    // 2) 스태프
     const staffName = (row[COL_STAFF_NAME] || '').trim();
-    if (staffName && staffDigits && staffLast4 === targetPhone4 && staffName === targetName) {
+    if (
+      staffName &&
+      staffDigits &&
+      staffLast4 === targetPhone4 &&
+      staffName === targetName
+    ) {
       return {
         role: '스태프',
         name: staffName,
         phone4: staffLast4,
-        team: row[COL_STAFF_TEAM] || '',
-        univ: row[COL_STAFF_UNIV] || '',
-        raw: row,
       };
     }
   }
 
-  // 끝까지 못 찾으면 null
   return null;
 }
 
-// =========================
-// Kakao 스킬 엔드포인트(본인인증)
-// =========================
+// ======================================
+// 4. 출석부: 이름으로 아웃카운트 찾기
+// ======================================
+
+async function findAttendanceByName(name) {
+  const sheets = createSheetsClient();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: ATT_SPREADSHEET_ID,
+    range: ATT_RANGE,
+  });
+
+  const rows = res.data.values || [];
+  if (!rows.length) return null;
+
+  const targetName = (name || '').trim();
+
+  const parseOut = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    const num = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+    return Number.isNaN(num) ? null : num;
+  };
+
+  for (const row of rows) {
+    const rowName = (row[COL_ATT_NAME] || '').trim();
+    if (!rowName) continue;
+
+    if (rowName === targetName) {
+      const outN = parseOut(row[COL_OUT_N]);
+      const outP = parseOut(row[COL_OUT_P]);
+
+      // P열(8월 포함 아웃카운트)에 값이 있으면 우선 사용, 없으면 N열 사용
+      const totalOut = outP !== null ? outP : outN;
+
+      return {
+        name: rowName,
+        totalOut,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ======================================
+// 5. 간단 세션: 마지막 본인인증 결과 저장
+// ======================================
+
+// key: kakao user id, value: { name, role, phone4 }
+const lastAuthByUserId = new Map();
+
+// ======================================
+// 6. Kakao 스킬 엔드포인트 - 본인인증 (/kakao)
+// ======================================
 
 app.post('/kakao', async (req, res) => {
   const body = req.body || {};
   const action = body.action || {};
   const params = action.params || {};
+  const userRequest = body.userRequest || {};
+  const user = userRequest.user || {};
+  const kakaoUserId = user.id || null;
 
   const userName = params.user_name || '';
   const userPhone4 = params.user_phone4 || '';
 
   console.log('인증 요청 - 이름:', userName, '전화 뒤 4자리:', userPhone4);
 
-  // 기본 방어 로직
   if (!userName || !userPhone4) {
     return res.json({
       version: '2.0',
@@ -138,7 +206,6 @@ app.post('/kakao', async (req, res) => {
     const person = await findPersonByNameAndPhone4(userName, userPhone4);
 
     if (!person) {
-      // 시트에서 못 찾은 경우
       return res.json({
         version: '2.0',
         template: {
@@ -156,14 +223,20 @@ app.post('/kakao', async (req, res) => {
       });
     }
 
-    // 인증 성공한 경우
+    // 세션에 인증정보 저장 (출석조회에서 사용)
+    if (kakaoUserId) {
+      lastAuthByUserId.set(kakaoUserId, {
+        name: person.name,
+        role: person.role,
+        phone4: person.phone4,
+      });
+    }
+
     const lines = [
       `${person.name}님, 본인인증이 완료되었습니다 ✅`,
-      `• 구분: ${person.role}`,           // 스태프 / 멤버
-      person.team ? `• 직무팀: ${person.team}` : '',
-      person.univ ? `• 대학교: ${person.univ}` : '',
+      `• 구분: ${person.role}`, // 스태프 / 멤버
       '',
-      '이제 출석 현황/점수 조회 기능을 이용하실 수 있습니다.',
+      '이제 아래 버튼을 눌러 출석 현황을 확인할 수 있습니다.',
     ].filter(Boolean);
 
     return res.json({
@@ -176,7 +249,13 @@ app.post('/kakao', async (req, res) => {
             },
           },
         ],
-        // 이후에 quickReplies로 "출석 현황 보기" 버튼도 여기에 추가하면 됨
+        quickReplies: [
+          {
+            label: '출석 현황 보기',
+            action: 'message',
+            messageText: '출석 조회', // 출석조회 블록의 패턴 발화와 맞추기
+          },
+        ],
       },
     });
   } catch (err) {
@@ -199,25 +278,118 @@ app.post('/kakao', async (req, res) => {
     });
   }
 });
-// =========================
-// Kakao 스킬 엔드포인트(출석조회)
-// =========================
-app.post('/attendance', (req, res) => {
-  return res.json({
-    version: "2.0",
-    template: {
-      outputs: [
-        {
-          simpleText: {
-            text: "출석조회 스킬 연결 테스트 OK"
-          }
-        }
-      ]
+
+// ======================================
+// 7. Kakao 스킬 엔드포인트 - 출석조회 (/attendance)
+// ======================================
+
+app.post('/attendance', async (req, res) => {
+  const body = req.body || {};
+  const userRequest = body.userRequest || {};
+  const user = userRequest.user || {};
+  const kakaoUserId = user.id || null;
+
+  if (!kakaoUserId) {
+    // 이 경우는 거의 없겠지만 방어용
+    return res.json({
+      version: '2.0',
+      template: {
+        outputs: [
+          {
+            simpleText: {
+              text:
+                '사용자 정보를 확인할 수 없습니다.\n' +
+                '다시 시도해 주세요.',
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  const session = lastAuthByUserId.get(kakaoUserId);
+
+  if (!session || !session.name) {
+    // 본인인증 정보 없음 → 다시 인증 요청
+    return res.json({
+      version: '2.0',
+      template: {
+        outputs: [
+          {
+            simpleText: {
+              text:
+                '먼저 본인인증이 필요합니다.\n' +
+                '출석 현황 메뉴에서 [본인확인]을 다시 진행해 주세요.',
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  try {
+    const attendance = await findAttendanceByName(session.name);
+
+    if (!attendance || attendance.totalOut === null) {
+      return res.json({
+        version: '2.0',
+        template: {
+          outputs: [
+            {
+              simpleText: {
+                text:
+                  `${session.name}님의 출석 정보를 찾지 못했습니다.\n` +
+                  '운영진에게 출석부 등록 여부를 확인해 주세요.',
+            },
+          ],
+        },
+      });
     }
-  });
+
+    const textLines = [
+      `${session.name}님의 출석 현황입니다.`,
+      '',
+      `총 아웃카운트: ${attendance.totalOut} OUT`,
+      '(8월 출석 포함 기준입니다.)',
+    ];
+
+    return res.json({
+      version: '2.0',
+      template: {
+        outputs: [
+          {
+            simpleText: {
+              text: textLines.join('\n'),
+            },
+          },
+        ],
+      },
+    });
+  } catch (err) {
+    console.error('출석 조회 중 오류:', err);
+
+    return res.json({
+      version: '2.0',
+      template: {
+        outputs: [
+          {
+            simpleText: {
+              text:
+                '출석 조회 중 내부 오류가 발생했습니다.\n' +
+                '잠시 후 다시 시도해 주세요.\n' +
+                '(지속되면 운영진에게 문의해주세요.)',
+            },
+          },
+        ],
+      },
+    });
+  }
 });
 
-// 헬스체크용 루트 엔드포인트
+// ======================================
+// 8. 헬스체크
+// ======================================
+
 app.get('/', (req, res) => {
   res.send('Linkus skill server OK');
 });
