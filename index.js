@@ -14,7 +14,7 @@ const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
 const AUTH_SHEET_NAME = '18기(전 인원) 명단';
 const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
-// 열 인덱스 (0부터, A=0, B=1, C=2, ...)
+// 열 인덱스 (0부터, A=0, B=1, C=2 ...)
 // 스태프 영역
 const COL_STAFF_NAME  = 2;  // C열: 스태프 이름
 const COL_STAFF_PHONE = 8;  // I열: 스태프 연락처
@@ -26,16 +26,15 @@ const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 // ─ 출석부 시트 ─
 const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
 const ATT_SHEET_NAME = '출석부';
-// 1~4행은 헤더라고 보고, 5행부터 데이터를 읽음 (A~Q까지 넉넉히)
-const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`;
+const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`;   // 5행부터 데이터라고 가정
 
 // 출석부 열 인덱스
-const COL_ATT_NAME   = 2;  // C열: 이름
-const COL_OUT_N      = 13; // N열: 아웃카운트(출석)
-const COL_OUT_P      = 15; // P열: 8월 출석 포함 아웃카운트
+const COL_ATT_NAME = 2;   // C열: 이름
+const COL_OUT_N    = 13;  // N열: 아웃카운트(출석)
+const COL_OUT_P    = 15;  // P열: 8월 출석 포함 아웃카운트
 
 // ======================================
-// 2. Google Sheets 클라이언트 공통 함수
+// 2. Google Sheets 클라이언트
 // ======================================
 
 function createSheetsClient() {
@@ -55,7 +54,7 @@ function createSheetsClient() {
 }
 
 // ======================================
-// 3. 본인인증: 이름 + 전화 뒤 4자리로 사람 찾기
+// 3. 본인인증: 이름 + 전화 뒤 4자리 찾기
 // ======================================
 
 async function findPersonByNameAndPhone4(name, phone4) {
@@ -147,9 +146,7 @@ async function findAttendanceByName(name) {
     if (rowName === targetName) {
       const outN = parseOut(row[COL_OUT_N]);
       const outP = parseOut(row[COL_OUT_P]);
-
-      // P열(8월 포함 아웃카운트)에 값이 있으면 우선 사용, 없으면 N열 사용
-      const totalOut = outP !== null ? outP : outN;
+      const totalOut = outP !== null ? outP : outN;   // P가 있으면 P, 없으면 N
 
       return {
         name: rowName,
@@ -162,14 +159,14 @@ async function findAttendanceByName(name) {
 }
 
 // ======================================
-// 5. 간단 세션: 마지막 본인인증 결과 저장
+// 5. 간단 세션: 마지막 본인인증 결과
 // ======================================
 
 // key: kakao user id, value: { name, role, phone4 }
 const lastAuthByUserId = new Map();
 
 // ======================================
-// 6. Kakao 스킬 엔드포인트 - 본인인증 (/kakao)
+// 6. Kakao 스킬 - 본인인증 (/kakao)
 // ======================================
 
 app.post('/kakao', async (req, res) => {
@@ -216,14 +213,13 @@ app.post('/kakao', async (req, res) => {
                   '입력하신 정보와 일치하는 인원을 찾지 못했습니다.\n' +
                   '이름과 전화번호 뒤 4자리를 다시 한 번 확인해주세요.\n' +
                   '(그래도 안 되면 운영진에게 문의해주세요.)',
-              },
             },
           ],
         },
       });
     }
 
-    // 세션에 인증정보 저장 (출석조회에서 사용)
+    // 세션에 인증정보 저장
     if (kakaoUserId) {
       lastAuthByUserId.set(kakaoUserId, {
         name: person.name,
@@ -234,10 +230,10 @@ app.post('/kakao', async (req, res) => {
 
     const lines = [
       `${person.name}님, 본인인증이 완료되었습니다 ✅`,
-      `• 구분: ${person.role}`, // 스태프 / 멤버
+      `• 구분: ${person.role}`,
       '',
       '이제 아래 버튼을 눌러 출석 현황을 확인할 수 있습니다.',
-    ].filter(Boolean);
+    ];
 
     return res.json({
       version: '2.0',
@@ -253,7 +249,7 @@ app.post('/kakao', async (req, res) => {
           {
             label: '출석 현황 보기',
             action: 'message',
-            messageText: '출석 조회', // 출석조회 블록의 패턴 발화와 맞추기
+            messageText: '출석 조회', // 출석조회 블록 패턴이랑 맞추기
           },
         ],
       },
@@ -280,7 +276,7 @@ app.post('/kakao', async (req, res) => {
 });
 
 // ======================================
-// 7. Kakao 스킬 엔드포인트 - 출석조회 (/attendance)
+// 7. Kakao 스킬 - 출석조회 (/attendance)
 // ======================================
 
 app.post('/attendance', async (req, res) => {
@@ -290,7 +286,6 @@ app.post('/attendance', async (req, res) => {
   const kakaoUserId = user.id || null;
 
   if (!kakaoUserId) {
-    // 이 경우는 거의 없겠지만 방어용
     return res.json({
       version: '2.0',
       template: {
@@ -310,7 +305,6 @@ app.post('/attendance', async (req, res) => {
   const session = lastAuthByUserId.get(kakaoUserId);
 
   if (!session || !session.name) {
-    // 본인인증 정보 없음 → 다시 인증 요청
     return res.json({
       version: '2.0',
       template: {
@@ -341,8 +335,8 @@ app.post('/attendance', async (req, res) => {
                   `${session.name}님의 출석 정보를 찾지 못했습니다.\n` +
                   '운영진에게 출석부 등록 여부를 확인해 주세요.',
             },
-          ],
-        },
+          },
+        ],
       });
     }
 
