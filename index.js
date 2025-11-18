@@ -16,22 +16,22 @@ const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
 // 열 인덱스 (0부터, A=0, B=1, C=2 ...)
 // 스태프 영역
-const COL_STAFF_NAME  = 2;  // C열: 스태프 이름
+const COL_STAFF_NAME = 2;   // C열: 스태프 이름
 const COL_STAFF_PHONE = 8;  // I열: 스태프 연락처
 
 // 멤버 영역
-const COL_MEMBER_NAME  = 11; // L열: 멤버 이름
+const COL_MEMBER_NAME = 11;  // L열: 멤버 이름
 const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 
 // ─ 출석부 시트 ─
 const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
 const ATT_SHEET_NAME = '출석부';
-const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`;   // 5행부터 데이터라고 가정
+const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`; // 5행부터 데이터라고 가정
 
 // 출석부 열 인덱스
-const COL_ATT_NAME = 2;   // C열: 이름
-const COL_OUT_N    = 13;  // N열: 아웃카운트(출석)
-const COL_OUT_P    = 15;  // P열: 8월 출석 포함 아웃카운트
+const COL_ATT_NAME = 2;  // C열: 이름
+const COL_OUT_N = 13;    // N열: 아웃카운트(출석)
+const COL_OUT_P = 15;    // P열: 8월 출석 포함 아웃카운트
 
 // ======================================
 // 2. Google Sheets 클라이언트
@@ -146,7 +146,7 @@ async function findAttendanceByName(name) {
     if (rowName === targetName) {
       const outN = parseOut(row[COL_OUT_N]);
       const outP = parseOut(row[COL_OUT_P]);
-      const totalOut = outP !== null ? outP : outN;   // P가 있으면 P, 없으면 N
+      const totalOut = outP !== null ? outP : outN; // P가 있으면 P, 없으면 N
 
       return {
         name: rowName,
@@ -183,16 +183,17 @@ app.post('/kakao', async (req, res) => {
   console.log('인증 요청 - 이름:', userName, '전화 뒤 4자리:', userPhone4);
 
   if (!userName || !userPhone4) {
+    const msg = [
+      '이름과 전화번호 뒤 4자리를 모두 입력해야 본인인증이 가능합니다.',
+      '다시 시도해주세요.',
+    ].join('\n');
+
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text:
-                '이름과 전화번호 뒤 4자리를 모두 입력해야 본인인증이 가능합니다.\n' +
-                '다시 시도해주세요.',
-            },
+            simpleText: { text: msg },
           },
         ],
       },
@@ -203,16 +204,18 @@ app.post('/kakao', async (req, res) => {
     const person = await findPersonByNameAndPhone4(userName, userPhone4);
 
     if (!person) {
+      const msg = [
+        '입력하신 정보와 일치하는 인원을 찾지 못했습니다.',
+        '이름과 전화번호 뒤 4자리를 다시 한 번 확인해주세요.',
+        '(그래도 안 되면 운영진에게 문의해주세요.)',
+      ].join('\n');
+
       return res.json({
         version: '2.0',
         template: {
           outputs: [
             {
-              simpleText: {
-                text:
-                  '입력하신 정보와 일치하는 인원을 찾지 못했습니다.\n' +
-                  '이름과 전화번호 뒤 4자리를 다시 한 번 확인해주세요.\n' +
-                  '(그래도 안 되면 운영진에게 문의해주세요.)',
+              simpleText: { text: msg },
             },
           ],
         },
@@ -228,28 +231,26 @@ app.post('/kakao', async (req, res) => {
       });
     }
 
-    const lines = [
+    const msg = [
       `${person.name}님, 본인인증이 완료되었습니다 ✅`,
       `• 구분: ${person.role}`,
       '',
       '이제 아래 버튼을 눌러 출석 현황을 확인할 수 있습니다.',
-    ];
+    ].join('\n');
 
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text: lines.join('\n'),
-            },
+            simpleText: { text: msg },
           },
         ],
         quickReplies: [
           {
             label: '출석 현황 보기',
             action: 'message',
-            messageText: '출석 조회', // 출석조회 블록 패턴이랑 맞추기
+            messageText: '출석 조회', // 출석조회 블록 패턴과 맞추기
           },
         ],
       },
@@ -257,17 +258,18 @@ app.post('/kakao', async (req, res) => {
   } catch (err) {
     console.error('본인인증 처리 중 오류:', err);
 
+    const msg = [
+      '본인인증 처리 중 내부 오류가 발생했습니다.',
+      '잠시 후 다시 시도해 주세요.',
+      '(지속되면 운영진에게 문의해주세요.)',
+    ].join('\n');
+
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text:
-                '본인인증 처리 중 내부 오류가 발생했습니다.\n' +
-                '잠시 후 다시 시도해 주세요.\n' +
-                '(지속되면 운영진에게 문의해주세요.)',
-            },
+            simpleText: { text: msg },
           },
         ],
       },
@@ -286,16 +288,17 @@ app.post('/attendance', async (req, res) => {
   const kakaoUserId = user.id || null;
 
   if (!kakaoUserId) {
+    const msg = [
+      '사용자 정보를 확인할 수 없습니다.',
+      '다시 시도해 주세요.',
+    ].join('\n');
+
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text:
-                '사용자 정보를 확인할 수 없습니다.\n' +
-                '다시 시도해 주세요.',
-            },
+            simpleText: { text: msg },
           },
         ],
       },
@@ -305,16 +308,17 @@ app.post('/attendance', async (req, res) => {
   const session = lastAuthByUserId.get(kakaoUserId);
 
   if (!session || !session.name) {
+    const msg = [
+      '먼저 본인인증이 필요합니다.',
+      '출석 현황 메뉴에서 [본인확인]을 다시 진행해 주세요.',
+    ].join('\n');
+
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text:
-                '먼저 본인인증이 필요합니다.\n' +
-                '출석 현황 메뉴에서 [본인확인]을 다시 진행해 주세요.',
-            },
+            simpleText: { text: msg },
           },
         ],
       },
@@ -325,36 +329,36 @@ app.post('/attendance', async (req, res) => {
     const attendance = await findAttendanceByName(session.name);
 
     if (!attendance || attendance.totalOut === null) {
+      const msg = [
+        `${session.name}님의 출석 정보를 찾지 못했습니다.`,
+        '운영진에게 출석부 등록 여부를 확인해 주세요.',
+      ].join('\n');
+
       return res.json({
         version: '2.0',
         template: {
           outputs: [
             {
-              simpleText: {
-                text:
-                  `${session.name}님의 출석 정보를 찾지 못했습니다.\n` +
-                  '운영진에게 출석부 등록 여부를 확인해 주세요.',
+              simpleText: { text: msg },
             },
-          },
-        ],
+          ],
+        },
       });
     }
 
-    const textLines = [
+    const msg = [
       `${session.name}님의 출석 현황입니다.`,
       '',
       `총 아웃카운트: ${attendance.totalOut} OUT`,
       '(8월 출석 포함 기준입니다.)',
-    ];
+    ].join('\n');
 
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text: textLines.join('\n'),
-            },
+            simpleText: { text: msg },
           },
         ],
       },
@@ -362,17 +366,18 @@ app.post('/attendance', async (req, res) => {
   } catch (err) {
     console.error('출석 조회 중 오류:', err);
 
+    const msg = [
+      '출석 조회 중 내부 오류가 발생했습니다.',
+      '잠시 후 다시 시도해 주세요.',
+      '(지속되면 운영진에게 문의해주세요.)',
+    ].join('\n');
+
     return res.json({
       version: '2.0',
       template: {
         outputs: [
           {
-            simpleText: {
-              text:
-                '출석 조회 중 내부 오류가 발생했습니다.\n' +
-                '잠시 후 다시 시도해 주세요.\n' +
-                '(지속되면 운영진에게 문의해주세요.)',
-            },
+            simpleText: { text: msg },
           },
         ],
       },
