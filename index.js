@@ -11,7 +11,7 @@ app.use(express.json());
 
 // ─ 본인인증용 명단 시트 ─
 const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
-const AUTH_SHEET_NAME = '18기(전 인원) 명단';
+const AUTH_SHEET_NAME = '시트1';
 const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
 // 열 인덱스 (0부터, A=0, B=1, C=2 ...)
