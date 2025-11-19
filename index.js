@@ -250,7 +250,7 @@ app.post('/kakao', async (req, res) => {
           {
             label: '출석 현황 보기',
             action: 'message',
-            messageText: '출석 조회', // 출석조회 블록 패턴과 맞추기
+            messageText: '#링커스_출석조회', // 출석조회 블록 패턴과 맞추기
           },
         ],
       },
