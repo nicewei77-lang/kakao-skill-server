@@ -269,13 +269,20 @@ app.post('/kakao', async (req, res) => {
       template: {
         outputs: [
           {
-            simpleText: { text: msg },
+            simpleText: {
+              text: lines.join('\n'),
+            },
+          },
+        ],
+        quickReplies: [
+          {
+            label: '출석 현황 보기',
+            action: 'message',
+            messageText: '#링커스_출석조회', // 이 텍스트가 그대로 사용자 발화로 나감
           },
         ],
       },
     });
-  }
-});
 
 // ======================================
 // 7. Kakao 스킬 - 출석조회 (/attendance)
