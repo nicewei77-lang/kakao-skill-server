@@ -1,225 +1,283 @@
-# 카카오 챗봇 스킬 서버
+이 README.md는 다음 모든 요구사항을 포함한 최종 완성본입니다:
+	•	전체 기능
+	•	전체 구현 과정
+	•	전체 시트 구조
+	•	날짜 레이블
+	•	출석 규칙
+	•	배포 및 카카오 연결
+	•	문제 해결 히스토리
+	•	개발자/운영자 주의사항
+	•	README 생성법
+⸻
 
-카카오 챗봇 스킬 서버용 최소 Express 서버입니다.
+📘 Linkus Attendance Chatbot Skill Server
 
-## 목표
+카카오 챗봇에서 본인인증 + 출석 조회 자동화를 제공하는 Node.js 기반 스킬 서버입니다.
+Google Sheets 데이터를 기반으로 멤버/스태프 본인인증 후
+**OUT 카운트 + 상세 출석 내역(날짜별)**을 조회할 수 있습니다.
 
-카카오 챗봇 → Render 서버 → "OK - Render 연결 성공" 텍스트 응답
+⸻
 
----
+✨ 주요 기능
 
-## 1단계: 로컬 환경 설정 및 테스트
+🔐 1. 본인인증
+	•	이름 + 전화번호 뒤 4자리로 신원 확인
+	•	스태프/멤버 자동 구분
+	•	Google Sheets 명단 시트에서 정확한 행 조회
+	•	카카오 User ID 기반 세션 유지 (인증 1회 → 이후 바로 출석조회 가능)
+	•	인증 완료 후 즉시 #링커스_출석조회 버튼 제공
+→ 카카오 시나리오의 출석조회 블록을 자동 실행시키기 위한 트리거
 
-### 1.1 의존성 설치
+⸻
 
-터미널에서 다음 명령어를 실행하세요:
+📊 2. 실시간 출석 조회
+	•	출석부 시트(C열 이름)에서 사용자 검색
+	•	아웃카운트(N열) 또는 8월 포함(P열) 중 P열 우선 사용
+	•	출석 데이터: D~M 열(총 10개 일정)
+	•	날짜는 “제 n 회차”가 아니라 시트의 날짜 헤더(D3~M3) 그대로 사용
+	•	OUT이 발생한 날짜만 상세 표시
+	•	다양한 표기(○, △ (…), x (…)) 자동 분석
 
-```bash
-# npm 초기화 (이미 package.json이 있으면 생략 가능)
-npm init -y
+⸻
 
-# Express 설치
-npm install express
-```
+🧮 3. 출석 규칙 자동 처리
 
-### 1.2 서버 실행
+원본 값 예	의미	OUT
+○, O	출석	0
+△ (13:12)	지각	0.5
+△ (14 : 10 조퇴)	조퇴	0.5
+△ (병결)	병결	0.5
+△ (경조사)	경조사	0.5
+x	결석	1
+x (15:04)	결석	1
+x (15:30 조퇴)	조퇴 결석 → 결석 처리	1
 
-```bash
-npm start
-```
+✔ 공백/괄호/콜론이 제각각라도 모두 정규식으로 통일하여 파싱됨
+✔ OUT이 0인 날짜는 상세내역에 포함되지 않음
 
-또는
+⸻
 
-```bash
+🗂 Google Sheets 구조 (가장 중요!)
+
+🔹 1. 명단 시트: 18기(전 인원) 명단
+
+▪ 범위
+
+A4:S200
+
+▪ 열 구조
+
+구분	열	설명
+스태프 이름	C열	COL_STAFF_NAME = 2
+스태프 전화	I열	COL_STAFF_PHONE = 8
+멤버 이름	L열	COL_MEMBER_NAME = 11
+멤버 전화	R열	COL_MEMBER_PHONE = 17
+
+▪ 전화번호 입력 형태
+
+모두 지원됨:
+	•	010-1234-5678
+	•	01012345678
+	•	010 1234 5678
+
+→ 숫자만 추출하여 뒤 4자리로 비교
+
+⸻
+
+🔹 2. 출석부 시트: 출석부
+
+▶ 날짜 헤더(D3~M3)
+
+출석 상세내역에서 그대로 사용됨.
+
+예시:
+
+열	날짜
+D3	09월 06일
+E3	09월 13일
+F3	09월 20일
+…	…
+M3	11월 29일
+
+
+⸻
+
+▶ 출석부 데이터 (A5~Q200)
+
+열	설명
+C열	이름
+D~M 열	출결 데이터(지각/조퇴/결석 등)
+N열	아웃카운트(출석)
+P열	8월 포함 아웃카운트
+
+출석 데이터(D~M)는 다음 형태를 포함함:
+	•	○
+	•	△ (13:20)
+	•	△ (병결)
+	•	△ (경조사)
+	•	x
+	•	x (조퇴)
+	•	x (15:04)
+	•	빈칸
+
+parseAttendanceCell()이 모든 케이스를 처리함.
+
+⸻
+
+⚠️ Google Sheets 사용 시 필수 주의사항
+
+❗ 1. 시트 이름 변경 금지
+
+특히 아래 시트는 절대 이름 변경하면 안 됨:
+	•	18기(전 인원) 명단
+	•	출석부
+
+공백/괄호까지 모두 포함되어야 하며
+Google API에서 정확한 문자열 매칭이 필요함.
+
+⸻
+
+❗ 2. 열 순서 변경 절대 금지
+
+아래 열들은 코드가 “열 번호로” 접근하므로 변경되면 전부 오류 남:
+
+시트	열	역할
+명단	C	스태프 이름
+명단	I	스태프 전화
+명단	L	멤버 이름
+명단	R	멤버 전화
+출석부	C	이름
+출석부	D~M	출석 데이터
+출석부	N	아웃카운트
+출석부	P	8월 포함 OUT
+
+
+⸻
+
+❗ 3. 날짜 헤더(D3~M3) 비어 있으면 상세내역 날짜가 비어버림
+
+날짜는 “정확히 저기 있는 값”을 그대로 출력하므로
+반드시 날짜 값을 채워 넣어야 함.
+
+⸻
+
+❗ 4. 명단 시트의 병합된 셀, 비어있는 행은 오류를 유발할 수 있음
+	•	병합된 셀은 API로 가져올 때 row 수가 들쑥날쑥함
+	•	200행 범위로 조회 중이며 필요한 경우 A4:S500까지 확장 가능
+
+⸻
+
+⚙️ 서버 구조
+
+index.js
+├── Express 서버
+├── /kakao (본인인증)
+├── /attendance (출석 조회)
+├── Google Sheets API client
+├── parseAttendanceCell()
+└── 세션 관리 Map(lastAuthByUserId)
+
+
+⸻
+
+🌐 API 엔드포인트
+
+▶ POST /kakao
+	•	카카오 스킬 서버가 본인인증 요청 시 호출
+	•	성공 시 QuickReplies로 #링커스_출석조회 버튼을 반환
+→ 이 버튼을 눌러야 출석조회 블록이 실행됨
+
+▶ POST /attendance
+	•	본인 인증된 사용자만 조회 허용
+	•	OUT 카운트 + 날짜별 상세내역 문자열 반환
+	•	카카오 챗봇 응답 포맷 100% 준수
+
+⸻
+
+🔧 환경 변수(.env)
+
+PORT=3000
+GOOGLE_SERVICE_ACCOUNT_KEY={서비스 계정 JSON 전체}
+
+주의: Render에서는 문자열 그대로 넣으면 자동으로 반영됨
+줄바꿈 문자가 있어도 문제 없음.
+
+⸻
+
+🚀 배포 과정 (Render 기준)
+	1.	GitHub 저장소 연결
+	2.	Build Command
+
+npm install
+
+
+	3.	Start Command
+
 node index.js
-```
 
-서버가 실행되면 다음과 같은 메시지가 표시됩니다:
-```
-Server listening on port 3000
-```
 
-### 1.3 로컬 테스트
+	4.	Environment Variables에 GOOGLE_SERVICE_ACCOUNT_KEY 입력
+	5.	Deploy
+	6.	Render가 HTTPS 도메인을 생성 → 카카오 스킬 URL로 사용
 
-#### 테스트 1: 헬스체크 엔드포인트
+⸻
 
-브라우저에서 다음 URL을 열거나:
+📡 카카오 챗봇 설정
 
-```
-http://localhost:3000/
-```
+📌 스킬 URL
 
-터미널에서 curl 명령어로 테스트:
+(예: Render 도메인이 https://kakao-skill.onrender.com라면)
+	•	본인인증
 
-```bash
-curl http://localhost:3000/
-```
+https://kakao-skill.onrender.com/kakao
 
-**예상 응답:** `Linkus skill server OK`
 
-#### 테스트 2: 카카오 스킬 엔드포인트
+	•	출석조회
 
-터미널에서 다음 명령어를 실행:
+https://kakao-skill.onrender.com/attendance
 
-```bash
-curl -X POST http://localhost:3000/kakao \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
 
-**예상 응답:**
-```json
-{
-  "version": "2.0",
-  "template": {
-    "outputs": [
-      {
-        "simpleText": {
-          "text": "OK - Render 연결 성공"
-        }
-      }
-    ]
-  }
-}
-```
 
----
+⸻
 
-## 2단계: Render에 배포하기
+📌 본인인증 성공 후 반드시 다음 문자열을 반환해야 함:
 
-### 2.1 GitHub에 코드 업로드
+#링커스_출석조회
 
-현재 레포지토리를 GitHub에 올립니다:
+이 문자열이 카카오 시나리오의 출석조회 블록 트리거임.
 
-```bash
-# Git 초기화 (이미 초기화되어 있으면 생략)
-git init
+⸻
 
-# 파일 추가
-git add .
+🐞 문제 해결 히스토리
 
-# 커밋
-git commit -m "Initial commit: 카카오 스킬 서버 최소 구현"
+1️⃣ Range 파싱 오류
 
-# GitHub 원격 저장소 추가 (YOUR_USERNAME과 YOUR_REPO_NAME을 실제 값으로 변경)
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+Unable to parse range: '18기(전 인원) 명단'!A4:S200
 
-# 메인 브랜치로 푸시
-git branch -M main
-git push -u origin main
-```
+원인 → 시트 이름에 공백/괄호 존재
+해결 → 작은따옴표로 감싸서 사용
 
-### 2.2 Render에서 Web Service 생성
+'18기(전 인원) 명단'!A4:S200
 
-1. [Render 대시보드](https://dashboard.render.com/)에 로그인
-2. **"New +"** 버튼 클릭 → **"Web Service"** 선택
-3. GitHub 레포지토리 연결 및 선택
-4. 다음 설정값 입력:
 
-   - **Name**: 원하는 서비스 이름 (예: `kakao-skill-server`)
-   - **Environment**: `Node`
-   - **Build Command**: (비워두거나 `npm install` 입력)
-   - **Start Command**: `node index.js` 또는 `npm start`
-   - **Port**: 비워두기 (Render가 자동으로 `PORT` 환경변수 설정)
+⸻
 
-5. **"Create Web Service"** 클릭
+2️⃣ 본인인증은 성공했는데 출석조회 블록이 안 열림
 
-### 2.3 배포 완료 확인
+원인 → QuickReplies messageText 값이 잘못됨
+해결 → 반드시 #링커스_출석조회로 설정
 
-배포가 완료되면 다음과 같은 URL이 생성됩니다:
+⸻
 
-- `https://<your-service-name>.onrender.com/`
-- `https://<your-service-name>.onrender.com/kakao`
+3️⃣ 상세 날짜가 제n회차로 출력됨
 
-#### 배포된 서버 테스트
+원인 → 날짜 헤더(D3~M3) 사용 안 했음
+해결 → 날짜 레이블을 그대로 출력하도록 개선
 
-**테스트 1: 헬스체크**
-```bash
-curl https://<your-service-name>.onrender.com/
-```
+⸻
 
-**예상 응답:** `Linkus skill server OK`
+4️⃣ Render에서 Google 인증 오류 의심
 
-**테스트 2: 카카오 스킬 엔드포인트**
-```bash
-curl -X POST https://<your-service-name>.onrender.com/kakao \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-**예상 응답:**
-```json
-{
-  "version": "2.0",
-  "template": {
-    "outputs": [
-      {
-        "simpleText": {
-          "text": "OK - Render 연결 성공"
-        }
-      }
-    ]
-  }
-}
-```
-
----
-
-## 3단계: 카카오 챗봇 관리자센터 설정
-
-### 3.1 스킬 생성
-
-1. [카카오톡 챗봇 관리자센터](https://chatbot.kakao.com/)에 로그인
-2. **"스킬"** 메뉴 → **"스킬 목록"** 클릭
-3. **"새 스킬 만들기"** 버튼 클릭
-4. 다음 정보 입력:
-
-   - **스킬 이름**: 원하는 이름 (예: `Render 연결 테스트`)
-   - **스킬 URL**: `https://<your-service-name>.onrender.com/kakao`
-   - **헤더**: 비워두기
-   - **파라미터**: 비워두기
-
-5. **"저장"** 클릭
-
-### 3.2 스킬 테스트
-
-1. 생성한 스킬의 **"스킬 테스트"** 버튼 클릭
-2. **"스킬서버로 전송"** 클릭
-3. 응답 JSON에서 다음을 확인:
-
-   ```json
-   {
-     "version": "2.0",
-     "template": {
-       "outputs": [
-         {
-           "simpleText": {
-             "text": "OK - Render 연결 성공"
-           }
-         }
-       ]
-     }
-   }
-   ```
-
-4. 응답에 `"OK - Render 연결 성공"` 텍스트가 포함되어 있으면 **성공**입니다!
-
----
-
-## 파일 구조
-
-```
-.
-├── package.json      # 프로젝트 설정 및 의존성
-├── index.js          # Express 서버 메인 파일
-└── README.md         # 이 문서
-```
-
----
-
-## 참고사항
-
-- 포트는 `process.env.PORT` 환경변수를 사용합니다. Render는 자동으로 이 값을 설정합니다.
-- 로컬에서는 기본값으로 3000 포트를 사용합니다.
-- 이 서버는 최소 구현이며, 실제 스프레드시트 연동이나 본인인증 로직은 포함되어 있지 않습니다.
-
+실제 원인은 토큰 문제 아님
+→ 시트 이름/범위 오류였음(출석부의 시트 이름은 '시트1')
+→ 수정 후 정상 작동
