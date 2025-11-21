@@ -130,13 +130,13 @@ async function findPersonByNameAndPhone4(name, phone4) {
 // ======================================
 //
 // 규칙 (D~M 셀 내용 예시)
-// △ (병결)       → 0.5 OUT, "예외 (병결)"
-// △ (경조사)     → 0.5 OUT, "예외 (경조사)"
-// △ (13:19)      → 0.5 OUT, "지각 (13:19)"
-// △ (16 : 09 조퇴) → 0.5 OUT, "조퇴 (16:09)"
-// x              → 1 OUT,   "결석"
-// x (15:30 조퇴) → 1 OUT,   "결석 (조퇴 15:30)"
-// x (15:04)      → 1 OUT,   "결석 (15:04)"
+// △ (병결)          → 0.5 OUT, "예외 (병결)"
+// △ (경조사)        → 0.5 OUT, "예외 (경조사)"
+// △ (13:19)         → 0.5 OUT, "지각 (13:19)"
+// △ (16 : 09 조퇴)  → 0.5 OUT, "조퇴 (16:09)"
+// x                 → 1 OUT,   "결석"
+// x (15:30 조퇴)    → 1 OUT,   "결석 (조퇴 15:30)"
+// x (15:04)         → 1 OUT,   "결석 (15:04)"
 //
 function parseAttendanceCell(rawValue) {
   if (rawValue === undefined || rawValue === null) {
@@ -178,8 +178,7 @@ function parseAttendanceCell(rawValue) {
         ? `조퇴 (${timeNormalized})`
         : '조퇴';
     } else if (inner) {
-      // 숫자만 있을 때 = 지각 시간
-      // 예: "13:19"
+      // 숫자만 있을 때 = 지각 시간 (예: "13:19")
       const timeNormalized = inner.replace(/\s*:\s*/, ':');
       label = `지각 (${timeNormalized})`;
     } else {
@@ -195,7 +194,6 @@ function parseAttendanceCell(rawValue) {
     let label = '결석';
 
     if (inner) {
-      // 조퇴인데 너무 빨라서 결석, 미인정 등
       if (inner.includes('조퇴')) {
         // 예: "15:30 조퇴"
         const timePart = inner.replace('조퇴', '').trim();
@@ -211,7 +209,7 @@ function parseAttendanceCell(rawValue) {
     return { out, label };
   }
 
-  // 그 외 값은 0 OUT으로 취급 (로그만 남길 수도 있음)
+  // 그 외 값은 0 OUT으로 취급
   return { out: 0, label: text };
 }
 
