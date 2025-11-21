@@ -23,7 +23,7 @@ const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
 
 // 출석부 탭 이름도 동일하게 작은따옴표로 감싼 A1 표기
 const ATT_RANGE = "'출석부'!A5:Q200";   // 데이터 행
-const ATT_DATE_RANGE = "'출석부'!D3:M3"; // 날짜 헤더 행
+const ATT_DATE_RANGE = "'출석부'!D6:M6"; // 날짜 헤더 행
 
 
 // ─ 출석부 열 인덱스 (0-based, A=0, B=1, C=2, ...) ─
@@ -228,7 +228,7 @@ async function findAttendanceByName(name) {
   const [headerRes, dataRes] = await Promise.all([
     sheets.spreadsheets.values.get({
       spreadsheetId: ATT_SPREADSHEET_ID,
-      range: ATT_DATE_RANGE, // D3:M3
+      range: ATT_DATE_RANGE, // D6:M6
     }),
     sheets.spreadsheets.values.get({
       spreadsheetId: ATT_SPREADSHEET_ID,
@@ -383,7 +383,7 @@ app.post('/kakao', async (req, res) => {
           {
             label: '출석 현황 보기',
             action: 'message',
-            messageText: '출석 조회', // 출석조회 블록 패턴과 맞추기
+            messageText: '#링커스_출석조회', // 출석조회 블록 패턴과 맞추기
           },
         ],
       },
