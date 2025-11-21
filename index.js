@@ -11,45 +11,35 @@ app.use(express.json());
 
 // ─ 본인인증용 명단 시트 ─
 const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
-const AUTH_SHEET_NAME = '18기(전 인원) 명단';
 
-// Google Sheets API에서 한국어/공백/괄호 탭 이름이 있을 때 필수 처리
-// 1) URL 인코딩 버전
-const AUTH_SHEET_NAME_ENC = encodeURIComponent(AUTH_SHEET_NAME);
-
-// 2) Range 구성 (A4:S200)
-const AUTH_RANGE = `${AUTH_SHEET_NAME_ENC}!A4:S200`;
+// 구글 스프레드시트에서 탭 이름을 그대로 복붙한 것
+// 공백/괄호가 있으므로 반드시 작은따옴표(')로 감싼 A1 표기 사용
+// ⚠ 템플릿 리터럴 안 쓰고 그냥 문자열로 박아두는 게 가장 안전함
+const AUTH_RANGE = "'18기(전 인원) 명단'!A4:S200";
 
 
 // ─ 출석부 시트 ─
 const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
-const ATT_SHEET_NAME = '출석부';
 
-// 한국어 탭 역시 동일 처리
-const ATT_SHEET_NAME_ENC = encodeURIComponent(ATT_SHEET_NAME);
-
-// 데이터 범위
-const ATT_RANGE = `${ATT_SHEET_NAME_ENC}!A5:Q200`;
-
-// 날짜 헤더 범위: D~M 열
-const ATT_DATE_RANGE = `${ATT_SHEET_NAME_ENC}!D3:M3`;
+// 출석부 탭 이름도 동일하게 작은따옴표로 감싼 A1 표기
+const ATT_RANGE = "'출석부'!A5:Q200";   // 데이터 행
+const ATT_DATE_RANGE = "'출석부'!D3:M3"; // 날짜 헤더 행
 
 
-// ─ 열 인덱스 설정 ─
-// (0부터 시작, A=0)
-const COL_ATT_NAME = 2;  // C열: 이름
-const COL_OUT_N = 13;    // N열: 아웃카운트
-const COL_OUT_P = 15;    // P열: 8월 포함 아웃카운트
+// ─ 출석부 열 인덱스 (0-based, A=0, B=1, C=2, ...) ─
+const COL_ATT_NAME = 2;   // C열: 이름
+const COL_OUT_N = 13;     // N열: 아웃카운트(출석)
+const COL_OUT_P = 15;     // P열: 8월 출석 포함 아웃카운트
 
-// 상세 출결 (D~M)
-const COL_ATT_START = 3;   // D
-const COL_ATT_END = 12;    // M
+// 출결 상세 데이터 열 범위 (D~M)
+const COL_ATT_START = 3;  // D열 index = 3
+const COL_ATT_END = 12;   // M열 index = 12
 
-// ─ 본인인증용 명단 시트의 열 인덱스 ─
-const COL_STAFF_NAME = 2;    // C
-const COL_STAFF_PHONE = 8;   // I
-const COL_MEMBER_NAME = 11;  // L
-const COL_MEMBER_PHONE = 17; // R
+// ─ 본인인증용 명단 시트 내 열 인덱스 ─
+const COL_STAFF_NAME = 2;    // C열: 스태프 이름
+const COL_STAFF_PHONE = 8;   // I열: 스태프 연락처
+const COL_MEMBER_NAME = 11;  // L열: 멤버 이름
+const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 
 // ======================================
 // 2. Google Sheets 클라이언트
