@@ -15,7 +15,7 @@ const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
 // 구글 스프레드시트에서 탭 이름을 그대로 복붙한 것
 // 공백/괄호가 있으므로 반드시 작은따옴표(')로 감싼 A1 표기 사용
 // ⚠ 템플릿 리터럴 안 쓰고 그냥 문자열로 박아두는 게 가장 안전함
-const AUTH_RANGE = "'18기(전 인원) 명단'!A4:S200";
+const AUTH_RANGE = "'시트1'!A4:S200";
 
 
 // ─ 출석부 시트 ─
