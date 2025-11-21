@@ -416,10 +416,11 @@ app.post('/attendance', async (req, res) => {
   const user = userRequest.user || {};
   const kakaoUserId = user.id || null;
 
+  // 1) 사용자 정보 없음
   if (!kakaoUserId) {
     const msg = [
       '사용자 정보를 확인할 수 없습니다.',
-      '다시 시도해 주세요.',
+      '다시 시도해 주세요.'
     ].join('\n');
 
     return res.json({
@@ -427,19 +428,20 @@ app.post('/attendance', async (req, res) => {
       template: {
         outputs: [
           {
-            simpleText: { text: msg },
-          },
-        ],
-      },
+            simpleText: { text: msg }
+          }
+        ]
+      }
     });
   }
 
+  // 2) 본인인증 세션 없음
   const session = lastAuthByUserId.get(kakaoUserId);
 
   if (!session || !session.name) {
     const msg = [
       '먼저 본인인증이 필요합니다.',
-      '출석 현황 메뉴에서 [본인확인]을 다시 진행해 주세요.',
+      '출석 현황 메뉴에서 [본인확인]을 다시 진행해 주세요.'
     ].join('\n');
 
     return res.json({
@@ -447,20 +449,22 @@ app.post('/attendance', async (req, res) => {
       template: {
         outputs: [
           {
-            simpleText: { text: msg },
-          },
-        ],
-      },
+            simpleText: { text: msg }
+          }
+        ]
+      }
     });
   }
 
+  // 3) 출석 정보 조회
   try {
     const attendance = await findAttendanceByName(session.name);
 
+    // 출석 데이터 없음 or 총 OUT 값 없음
     if (!attendance || attendance.totalOut === null) {
       const msg = [
-        `${session.name}님의 출석 정보를 찾지 못했습니다.`,
-        '운영진에게 출석부 등록 여부를 확인해 주세요.',
+        session.name + '님의 출석 정보를 찾지 못했습니다.',
+        '운영진에게 출석부 등록 여부를 확인해 주세요.'
       ].join('\n');
 
       return res.json({
@@ -468,25 +472,25 @@ app.post('/attendance', async (req, res) => {
         template: {
           outputs: [
             {
-              simpleText: { text: msg },
-            },
-          ],
-        ],
+              simpleText: { text: msg }
+            }
+          ]
+        }
       });
     }
 
-    const lines = [
-      `${session.name}님의 출석 현황입니다.`,
-      '',
-      `총 아웃카운트: ${attendance.totalOut} OUT`,
-    ];
+    // 4) 메시지 구성
+    const lines = [];
+    lines.push(session.name + '님의 출석 현황입니다.');
+    lines.push('');
+    lines.push('총 아웃카운트: ' + attendance.totalOut + ' OUT');
 
-    // OUT 발생일만 상세 내역에 표시
+    // 상세 내역 (OUT 발생일만)
     if (attendance.details && attendance.details.length > 0) {
       lines.push('');
       lines.push('📌 상세 내역 (OUT 발생일)');
-      attendance.details.forEach((d) => {
-        lines.push(`- ${d.date}: ${d.label} → ${d.out} OUT`);
+      attendance.details.forEach(function (d) {
+        lines.push('- ' + d.date + ': ' + d.label + ' → ' + d.out + ' OUT');
       });
     }
 
@@ -497,10 +501,10 @@ app.post('/attendance', async (req, res) => {
       template: {
         outputs: [
           {
-            simpleText: { text: msg },
-          },
-        ],
-      },
+            simpleText: { text: msg }
+          }
+        ]
+      }
     });
   } catch (err) {
     console.error('출석 조회 중 오류:', err);
@@ -508,7 +512,7 @@ app.post('/attendance', async (req, res) => {
     const msg = [
       '출석 조회 중 내부 오류가 발생했습니다.',
       '잠시 후 다시 시도해 주세요.',
-      '(지속되면 운영진에게 문의해주세요.)',
+      '(지속되면 운영진에게 문의해주세요.)'
     ].join('\n');
 
     return res.json({
@@ -516,10 +520,10 @@ app.post('/attendance', async (req, res) => {
       template: {
         outputs: [
           {
-            simpleText: { text: msg },
-          },
-        ],
-      },
+            simpleText: { text: msg }
+          }
+        ]
+      }
     });
   }
 });
