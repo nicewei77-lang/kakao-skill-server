@@ -12,7 +12,7 @@ app.use(express.json());
 // ─ 본인인증용 명단 시트 ─
 const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
 const AUTH_SHEET_NAME = '18기(전 인원) 명단';
-const AUTH_RANGE = `'${AUTH_SHEET_NAME}'!A4:S200`;
+const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
 // 열 인덱스 (0부터, A=0, B=1, C=2 ...)
 // 스태프 영역
@@ -26,12 +26,7 @@ const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 // ─ 출석부 시트 ─
 const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
 const ATT_SHEET_NAME = '출석부';
-
-// 출석 데이터 범위 (이름 + OUT 합계 + 출결 10개 열 포함)
-const ATT_RANGE = `'${ATT_SHEET_NAME}'!A5:Q200`; // 5행부터 데이터
-
-// 날짜 헤더(열 제목) 범위: D~M 열 (10개 날짜)
-const ATT_DATE_RANGE = `'${ATT_SHEET_NAME}'!D3:M3`;
+const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`; // 5행부터 데이터라고 가정
 
 // 출석부 열 인덱스
 const COL_ATT_NAME = 2;  // C열: 이름
