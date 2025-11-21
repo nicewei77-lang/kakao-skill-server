@@ -11,7 +11,7 @@ app.use(express.json());
 
 // ─ 본인인증용 명단 시트 ─
 const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
-const AUTH_SHEET_NAME = '시트1';
+const AUTH_SHEET_NAME = '18기(전 인원) 명단';
 const AUTH_RANGE = `${AUTH_SHEET_NAME}!A4:S`;
 
 // 열 인덱스 (0부터, A=0, B=1, C=2 ...)
@@ -26,12 +26,21 @@ const COL_MEMBER_PHONE = 17; // R열: 멤버 전화번호
 // ─ 출석부 시트 ─
 const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
 const ATT_SHEET_NAME = '출석부';
-const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`; // 5행부터 데이터라고 가정
+
+// 출석 데이터 범위 (이름 + OUT 합계 + 출결 10개 열 포함)
+const ATT_RANGE = `${ATT_SHEET_NAME}!A5:Q`; // 5행부터 데이터
+
+// 날짜 헤더(열 제목) 범위: D~M 열 (10개 날짜)
+const ATT_DATE_RANGE = `${ATT_SHEET_NAME}!D3:M3`;
 
 // 출석부 열 인덱스
 const COL_ATT_NAME = 2;  // C열: 이름
 const COL_OUT_N = 13;    // N열: 아웃카운트(출석)
 const COL_OUT_P = 15;    // P열: 8월 출석 포함 아웃카운트
+
+// 출결 상세 데이터 열 범위 (D~M)
+const COL_ATT_START = 3;   // D열 index = 3
+const COL_ATT_END = 12;    // M열 index = 12
 
 // ======================================
 // 2. Google Sheets 클라이언트
@@ -117,23 +126,121 @@ async function findPersonByNameAndPhone4(name, phone4) {
 }
 
 // ======================================
-// 4. 출석부: 이름으로 아웃카운트 찾기
+// 4. 출석기록 1칸 파싱 → OUT 값 + 설명
+// ======================================
+//
+// 규칙 (D~M 셀 내용 예시)
+// △ (병결)       → 0.5 OUT, "예외 (병결)"
+// △ (경조사)     → 0.5 OUT, "예외 (경조사)"
+// △ (13:19)      → 0.5 OUT, "지각 (13:19)"
+// △ (16 : 09 조퇴) → 0.5 OUT, "조퇴 (16:09)"
+// x              → 1 OUT,   "결석"
+// x (15:30 조퇴) → 1 OUT,   "결석 (조퇴 15:30)"
+// x (15:04)      → 1 OUT,   "결석 (15:04)"
+//
+function parseAttendanceCell(rawValue) {
+  if (rawValue === undefined || rawValue === null) {
+    return { out: 0, label: '' };
+  }
+
+  const textOriginal = String(rawValue).trim();
+  if (!textOriginal) {
+    return { out: 0, label: '' };
+  }
+
+  const text = textOriginal.replace(/\s+/g, ' '); // 공백 정리
+  const lower = text.toLowerCase();
+
+  // 정상 출석 (O)
+  if (text === 'O' || text === 'o' || text === '○') {
+    return { out: 0, label: '출석' };
+  }
+
+  // 괄호 안 내용 추출
+  const m = text.match(/\(([^)]*)\)/);
+  const innerRaw = m ? m[1].trim() : '';
+  const inner = innerRaw.replace(/\s+/g, ' '); // 공백 정리
+
+  // △ 계열 (지각/조퇴/병결/경조사) → 0.5 OUT
+  if (text.includes('△')) {
+    let out = 0.5;
+    let label;
+
+    if (inner.includes('병결')) {
+      label = '예외 (병결)';
+    } else if (inner.includes('경조사')) {
+      label = '예외 (경조사)';
+    } else if (inner.includes('조퇴')) {
+      // 예: "16 : 09 조퇴"
+      const timePart = inner.replace('조퇴', '').trim();
+      const timeNormalized = timePart.replace(/\s*:\s*/, ':'); // "16 : 09" → "16:09"
+      label = timeNormalized
+        ? `조퇴 (${timeNormalized})`
+        : '조퇴';
+    } else if (inner) {
+      // 숫자만 있을 때 = 지각 시간
+      // 예: "13:19"
+      const timeNormalized = inner.replace(/\s*:\s*/, ':');
+      label = `지각 (${timeNormalized})`;
+    } else {
+      label = '지각/조퇴';
+    }
+
+    return { out, label };
+  }
+
+  // x / X 계열 = 결석 (스태프 미인정 포함)
+  if (lower.startsWith('x')) {
+    let out = 1;
+    let label = '결석';
+
+    if (inner) {
+      // 조퇴인데 너무 빨라서 결석, 미인정 등
+      if (inner.includes('조퇴')) {
+        // 예: "15:30 조퇴"
+        const timePart = inner.replace('조퇴', '').trim();
+        const timeNormalized = timePart.replace(/\s*:\s*/, ':');
+        label = timeNormalized
+          ? `결석 (조퇴 ${timeNormalized})`
+          : '결석 (조퇴)';
+      } else {
+        label = `결석 (${inner})`;
+      }
+    }
+
+    return { out, label };
+  }
+
+  // 그 외 값은 0 OUT으로 취급 (로그만 남길 수도 있음)
+  return { out: 0, label: text };
+}
+
+// ======================================
+// 5. 출석부: 이름으로 아웃카운트 + 상세내역 찾기
 // ======================================
 
 async function findAttendanceByName(name) {
   const sheets = createSheetsClient();
 
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: ATT_SPREADSHEET_ID,
-    range: ATT_RANGE,
-  });
+  // 날짜 헤더 + 데이터 행을 동시에 가져오기
+  const [headerRes, dataRes] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId: ATT_SPREADSHEET_ID,
+      range: ATT_DATE_RANGE, // D3:M3
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: ATT_SPREADSHEET_ID,
+      range: ATT_RANGE, // A5:Q
+    }),
+  ]);
 
-  const rows = res.data.values || [];
+  const dateRow = (headerRes.data.values && headerRes.data.values[0]) || [];
+  const rows = dataRes.data.values || [];
   if (!rows.length) return null;
 
   const targetName = (name || '').trim();
 
-  const parseOut = (value) => {
+  const parseOutNumber = (value) => {
     if (value === undefined || value === null || value === '') return null;
     const num = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
     return Number.isNaN(num) ? null : num;
@@ -144,13 +251,37 @@ async function findAttendanceByName(name) {
     if (!rowName) continue;
 
     if (rowName === targetName) {
-      const outN = parseOut(row[COL_OUT_N]);
-      const outP = parseOut(row[COL_OUT_P]);
-      const totalOut = outP !== null ? outP : outN; // P가 있으면 P, 없으면 N
+      const outN = parseOutNumber(row[COL_OUT_N]);
+      const outP = parseOutNumber(row[COL_OUT_P]);
+      const totalOut = outP !== null ? outP : outN;
+
+      // 상세 내역: D~M 열에서 OUT > 0인 날만 추출
+      const details = [];
+
+      for (let col = COL_ATT_START; col <= COL_ATT_END; col++) {
+        const cell = row[col];
+        const { out, label } = parseAttendanceCell(cell);
+
+        if (!out || out <= 0) continue; // OUT 없는 날은 스킵
+
+        const headerIdx = col - COL_ATT_START; // 0~9
+        const headerTextRaw = dateRow[headerIdx] || '';
+        const headerText = String(headerTextRaw).trim();
+
+        // 날짜 표시: 시트 헤더가 비어있으면 "제n회차"로 대체
+        const dateLabel = headerText || `제${headerIdx + 1}회차`;
+
+        details.push({
+          date: dateLabel,
+          out,
+          label,
+        });
+      }
 
       return {
         name: rowName,
         totalOut,
+        details,
       };
     }
   }
@@ -159,14 +290,14 @@ async function findAttendanceByName(name) {
 }
 
 // ======================================
-// 5. 간단 세션: 마지막 본인인증 결과
+// 6. 간단 세션: 마지막 본인인증 결과
 // ======================================
 
 // key: kakao user id, value: { name, role, phone4 }
 const lastAuthByUserId = new Map();
 
 // ======================================
-// 6. Kakao 스킬 - 본인인증 (/kakao)
+// 7. Kakao 스킬 - 본인인증 (/kakao)
 // ======================================
 
 app.post('/kakao', async (req, res) => {
@@ -250,7 +381,7 @@ app.post('/kakao', async (req, res) => {
           {
             label: '출석 현황 보기',
             action: 'message',
-            messageText: '#링커스_출석조회', // 출석조회 블록 패턴과 맞추기
+            messageText: '출석 조회', // 출석조회 블록 패턴과 맞추기
           },
         ],
       },
@@ -278,7 +409,7 @@ app.post('/kakao', async (req, res) => {
 });
 
 // ======================================
-// 7. Kakao 스킬 - 출석조회 (/attendance)
+// 8. Kakao 스킬 - 출석조회 (/attendance)
 // ======================================
 
 app.post('/attendance', async (req, res) => {
@@ -342,16 +473,26 @@ app.post('/attendance', async (req, res) => {
               simpleText: { text: msg },
             },
           ],
-        },
+        ],
       });
     }
 
-    const msg = [
+    const lines = [
       `${session.name}님의 출석 현황입니다.`,
       '',
       `총 아웃카운트: ${attendance.totalOut} OUT`,
-      '(8월 출석 포함 기준입니다.)',
-    ].join('\n');
+    ];
+
+    // OUT 발생일만 상세 내역에 표시
+    if (attendance.details && attendance.details.length > 0) {
+      lines.push('');
+      lines.push('📌 상세 내역 (OUT 발생일)');
+      attendance.details.forEach((d) => {
+        lines.push(`- ${d.date}: ${d.label} → ${d.out} OUT`);
+      });
+    }
+
+    const msg = lines.join('\n');
 
     return res.json({
       version: '2.0',
@@ -386,7 +527,7 @@ app.post('/attendance', async (req, res) => {
 });
 
 // ======================================
-// 8. 헬스체크
+// 9. 헬스체크
 // ======================================
 
 app.get('/', (req, res) => {
