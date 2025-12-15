@@ -462,6 +462,7 @@ app.post('/kakao', async (req, res) => {
   }
 
   // 일반 모드 (콜백 없음)
+  // 일반 모드 (콜백 없음)
   if (!userName || !userPhone4) {
     const msg = [
       '이름과 전화번호 뒤 4자리를 모두 입력해야 본인인증이 가능합니다.',
