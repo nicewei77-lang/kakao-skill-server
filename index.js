@@ -309,6 +309,10 @@ const lastAuthByUserId = new Map();
  * @param {object} responseData - 카카오 챗봇 응답 포맷 (version 2.0)
  */
 async function sendCallbackResponse(callbackUrl, responseData) {
+  console.log('=== 콜백 응답 전송 시작 ===');
+  console.log('callbackUrl:', callbackUrl);
+  console.log('responseData:', JSON.stringify(responseData, null, 2));
+  
   try {
     const response = await axios.post(callbackUrl, responseData, {
       headers: {
@@ -317,12 +321,20 @@ async function sendCallbackResponse(callbackUrl, responseData) {
       timeout: 10000, // 10초 타임아웃
     });
 
-    console.log('콜백 응답 전송 성공:', response.data);
+    console.log('>>> 콜백 응답 전송 성공');
+    console.log('>>> 응답 상태:', response.status);
+    console.log('>>> 응답 데이터:', JSON.stringify(response.data, null, 2));
     return response.data;
   } catch (error) {
-    console.error('콜백 응답 전송 실패:', error.message);
+    console.error('>>> 콜백 응답 전송 실패');
+    console.error('>>> 에러 메시지:', error.message);
+    console.error('>>> 에러 코드:', error.code);
     if (error.response) {
-      console.error('응답 데이터:', error.response.data);
+      console.error('>>> HTTP 상태 코드:', error.response.status);
+      console.error('>>> 응답 데이터:', JSON.stringify(error.response.data, null, 2));
+    }
+    if (error.request) {
+      console.error('>>> 요청은 보냈지만 응답이 없음');
     }
     throw error;
   }
@@ -344,15 +356,22 @@ app.post('/kakao', async (req, res) => {
   const userName = params.user_name || '';
   const userPhone4 = params.user_phone4 || '';
 
+  // 디버깅 로그 추가
+  console.log('=== /kakao 요청 시작 ===');
   console.log('인증 요청 - 이름:', userName, '전화 뒤 4자리:', userPhone4);
   console.log('콜백 모드:', callbackUrl ? '활성화' : '비활성화');
+  console.log('callbackUrl:', callbackUrl);
+  console.log('userRequest.keys:', Object.keys(userRequest));
 
   // 콜백 모드인 경우 즉시 useCallback: true 반환
   if (callbackUrl) {
+    console.log('>>> 콜백 모드 진입 - 비동기 처리 시작');
     // 비동기로 본인인증 처리
     (async () => {
       try {
+        console.log('>>> 비동기 함수 실행 시작');
         if (!userName || !userPhone4) {
+          console.log('>>> 파라미터 누락 - 콜백 응답 전송');
           const msg = [
             '이름과 전화번호 뒤 4자리를 모두 입력해야 본인인증이 가능합니다.',
             '다시 시도해주세요.',
@@ -368,12 +387,16 @@ app.post('/kakao', async (req, res) => {
               ],
             },
           });
+          console.log('>>> 파라미터 누락 콜백 응답 전송 완료');
           return;
         }
 
+        console.log('>>> Google Sheets 조회 시작');
         const person = await findPersonByNameAndPhone4(userName, userPhone4);
+        console.log('>>> Google Sheets 조회 완료:', person ? '성공' : '실패');
 
         if (!person) {
+          console.log('>>> 인원 없음 - 콜백 응답 전송');
           const msg = [
             '입력하신 정보와 일치하는 인원을 찾지 못했습니다.',
             '이름과 전화번호 뒤 4자리를 다시 한 번 확인해주세요.',
@@ -390,6 +413,7 @@ app.post('/kakao', async (req, res) => {
               ],
             },
           });
+          console.log('>>> 인원 없음 콜백 응답 전송 완료');
           return;
         }
 
@@ -408,6 +432,7 @@ app.post('/kakao', async (req, res) => {
           '이제 아래 버튼을 눌러 출석 현황을 확인할 수 있습니다.',
         ].join('\n');
 
+        console.log('>>> 성공 - 최종 콜백 응답 전송 시작');
         await sendCallbackResponse(callbackUrl, {
           version: '2.0',
           template: {
@@ -425,8 +450,10 @@ app.post('/kakao', async (req, res) => {
             ],
           },
         });
+        console.log('>>> 성공 - 최종 콜백 응답 전송 완료');
       } catch (err) {
-        console.error('본인인증 콜백 처리 중 오류:', err);
+        console.error('>>> 본인인증 콜백 처리 중 오류:', err);
+        console.error('>>> 에러 스택:', err.stack);
 
         const msg = [
           '본인인증 처리 중 내부 오류가 발생했습니다.',
@@ -451,6 +478,7 @@ app.post('/kakao', async (req, res) => {
       }
     })();
 
+    console.log('>>> useCallback: true 반환');
     // 즉시 useCallback: true 반환
     return res.json({
       version: '2.0',
