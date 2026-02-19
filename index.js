@@ -11,20 +11,15 @@ app.use(express.json());
 // ======================================
 
 // ─ 본인인증용 명단 시트 ─
-const AUTH_SPREADSHEET_ID = '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
-
-// 구글 스프레드시트에서 탭 이름을 그대로 복붙한 것
-// 공백/괄호가 있으므로 반드시 작은따옴표(')로 감싼 A1 표기 사용
-// ⚠ 템플릿 리터럴 안 쓰고 그냥 문자열로 박아두는 게 가장 안전함
-const AUTH_RANGE = "'시트1'!A4:S200";
-
+const AUTH_SPREADSHEET_ID = process.env.AUTH_SPREADSHEET_ID || '1F_pq-dE_oAi_nJRThSjP5-QA-c8mmzJ5hA5mSbJXH60';
+const AUTH_SHEET_NAME = process.env.AUTH_SHEET_NAME || '시트1';
+const AUTH_RANGE = `'${AUTH_SHEET_NAME}'!A4:S200`;
 
 // ─ 출석부 시트 ─
-const ATT_SPREADSHEET_ID = '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
-
-// 출석부 탭 이름도 동일하게 작은따옴표로 감싼 A1 표기
-const ATT_RANGE = "'출석부'!A5:Q200";   // 데이터 행
-const ATT_DATE_RANGE = "'출석부'!D6:M6"; // 날짜 헤더 행
+const ATT_SPREADSHEET_ID = process.env.ATT_SPREADSHEET_ID || '1ujB1ZLjmXZXmkQREINW7YojdoXEYBN7gUlXCVTNUswM';
+const ATT_SHEET_NAME = process.env.ATT_SHEET_NAME || '출석부';
+const ATT_RANGE = `'${ATT_SHEET_NAME}'!A5:Q200`;
+const ATT_DATE_RANGE = `'${ATT_SHEET_NAME}'!D6:M6`;
 
 
 // ─ 출석부 열 인덱스 (0-based, A=0, B=1, C=2, ...) ─
@@ -853,10 +848,14 @@ app.get('/', (req, res) => {
   res.send('Linkus skill server OK');
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-  console.log('AUTH_RANGE =', AUTH_RANGE);
-  console.log('ATT_RANGE =', ATT_RANGE);
-  console.log('ATT_DATE_RANGE =', ATT_DATE_RANGE);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+    console.log('AUTH_RANGE =', AUTH_RANGE);
+    console.log('ATT_RANGE =', ATT_RANGE);
+    console.log('ATT_DATE_RANGE =', ATT_DATE_RANGE);
+  });
+}
+
+module.exports = app;
